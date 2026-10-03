@@ -1,6 +1,6 @@
-"""Builds Mods/modGammaReset from the installed game's own menu file.
+"""Builds the mod from the installed game's own menu file.
 
-python tools/build.py --ffdec path/to/ffdec.jar --w3edit path/to/w3edit.exe
+python tools/build.py --ffdec path/to/ffdec.jar --w3edit path/to/w3edit.exe --variant reset
 """
 
 import argparse
@@ -20,7 +20,8 @@ KNOWN_SHA256 = '49b6f09c5b4545aa87398cd6decd983abf92d1944e3b9bc23653a6fdb2bc1a34
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, 'tools', 'work')
-OUT = os.path.join(ROOT, 'Mods', 'modGammaReset')
+# output folder per variant
+VARIANTS = {'reset': 'Reset', 'value': 'Value', 'transparent': 'Transparent'}
 
 PUBLIC = 'QName(PackageNamespace(""),"%s")'
 
@@ -59,6 +60,320 @@ HIDE = feedback_call('ofs9001', [
     'pushtrue',
     'callpropvoid ' + PUBLIC % 'removeButton' + ', 2',
 ])
+
+TEXT_FIELD = 'QName(PackageNamespace("flash.text"),"TextField")'
+SHADOW = 'QName(PackageNamespace("flash.filters"),"DropShadowFilter")'
+
+
+def value_code(field, rect, white):
+    """Creates the value label once, then refreshes its text and position."""
+    style = []
+    color = []
+    if white:
+        color = [
+            'getlocal %d' % field,
+            'pushint 16777215',
+            'setproperty ' + PUBLIC % 'textColor',
+        ]
+        style = [
+            'getlocal %d' % field,
+            'findpropstrict ' + SHADOW,
+            'pushbyte 2',
+            'pushbyte 45',
+            'pushbyte 0',
+            'pushdouble 0.9',
+            'pushbyte 4',
+            'pushbyte 4',
+            'constructprop ' + SHADOW + ', 6',
+            'newarray 1',
+            'setproperty ' + PUBLIC % 'filters',
+        ]
+    return '\n'.join([
+        'getlocal0',
+        'pushstring "mcGammaValue"',
+        'callproperty ' + PUBLIC % 'getChildByName' + ', 1',
+        'setlocal %d' % field,
+        'getlocal %d' % field,
+        'iftrue ofs9401',
+        'findpropstrict ' + TEXT_FIELD,
+        'constructprop ' + TEXT_FIELD + ', 0',
+        'setlocal %d' % field,
+        'getlocal %d' % field,
+        'pushstring "mcGammaValue"',
+        'setproperty ' + PUBLIC % 'name',
+        'getlocal %d' % field,
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'txtTitle',
+        'getproperty ' + PUBLIC % 'embedFonts',
+        'setproperty ' + PUBLIC % 'embedFonts',
+        'getlocal %d' % field,
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'txtTitle',
+        'callproperty ' + PUBLIC % 'getTextFormat' + ', 0',
+        'setproperty ' + PUBLIC % 'defaultTextFormat',
+        'getlocal %d' % field,
+        'pushstring "left"',
+        'setproperty ' + PUBLIC % 'autoSize',
+        'getlocal %d' % field,
+        'pushfalse',
+        'setproperty ' + PUBLIC % 'selectable',
+        'getlocal %d' % field,
+        'pushfalse',
+        'setproperty ' + PUBLIC % 'mouseEnabled',
+    ] + style + [
+        'getlocal0',
+        'getlocal %d' % field,
+        'callpropvoid ' + PUBLIC % 'addChild' + ', 1',
+        'ofs9401:',
+        'getlocal %d' % field,
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'mcSlider',
+        'getproperty ' + PUBLIC % 'value',
+        'pushbyte 2',
+        'callproperty ' + PUBLIC % 'toFixed' + ', 1',
+        'setproperty ' + PUBLIC % 'text',
+    ] + color + [
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'mcSlider',
+        'getproperty ' + PUBLIC % 'track',
+        'getlocal0',
+        'callproperty ' + PUBLIC % 'getBounds' + ', 1',
+        'setlocal %d' % rect,
+        'getlocal %d' % field,
+        'getlocal %d' % rect,
+        'getproperty ' + PUBLIC % 'x',
+        'getlocal %d' % rect,
+        'getproperty ' + PUBLIC % 'width',
+        'add',
+        'pushbyte 24',
+        'add',
+        'setproperty ' + PUBLIC % 'x',
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'mcSlider',
+        'getproperty ' + PUBLIC % 'thumb',
+        'getlocal0',
+        'callproperty ' + PUBLIC % 'getBounds' + ', 1',
+        'setlocal %d' % rect,
+        'getlocal %d' % field,
+        'getlocal %d' % rect,
+        'getproperty ' + PUBLIC % 'y',
+        'getlocal %d' % rect,
+        'getproperty ' + PUBLIC % 'height',
+        'pushbyte 2',
+        'divide',
+        'add',
+        'getlocal %d' % field,
+        'getproperty ' + PUBLIC % 'height',
+        'pushbyte 2',
+        'divide',
+        'subtract',
+        'setproperty ' + PUBLIC % 'y',
+    ])
+
+
+# hide everything behind the slider
+TRANSPARENT = '\n'.join([
+    'getlocal0',
+    'pushbyte 0',
+    'callproperty ' + PUBLIC % 'getChildAt' + ', 1',
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'visible',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'txtTitle',
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'visible',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'iffalse ofs9501',
+    'pushstring "mcBlackBackground"',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'in',
+    'iffalse ofs9501',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'mcBlackBackground',
+    'iffalse ofs9501',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'mcBlackBackground',
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'backgroundForceVisible',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'mcBlackBackground',
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'backgroundVisible',
+    # a second show adds to the list instead of losing it
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modHidden',
+    'dup',
+    'iftrue ofs9506',
+    'pop',
+    'newarray 0',
+    'ofs9506:',
+    'setlocal 4',
+    'pushnull',
+    'setlocal 7',
+    'pushstring "txtVersion"',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'in',
+    'iffalse ofs9507',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'txtVersion',
+    'setlocal 7',
+    'ofs9507:',
+    'pushbyte 0',
+    'setlocal 5',
+    'ofs9502:',
+    'getlocal 5',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getlocal0',
+    'callproperty ' + PUBLIC % 'getChildIndex' + ', 1',
+    'ifnlt ofs9504',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getlocal 5',
+    'callproperty ' + PUBLIC % 'getChildAt' + ', 1',
+    'setlocal 6',
+    'getlocal 6',
+    'getproperty ' + PUBLIC % 'visible',
+    'iffalse ofs9503',
+    'getlocal 6',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'mcBlackBackground',
+    'ifstricteq ofs9503',
+    'getlocal 6',
+    'getlocal 7',
+    'ifstricteq ofs9503',
+    'getlocal 6',
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'visible',
+    'getlocal 4',
+    'getlocal 6',
+    'callpropvoid ' + PUBLIC % 'push' + ', 1',
+    'ofs9503:',
+    'inclocal_i 5',
+    'jump ofs9502',
+    'ofs9504:',
+    # visible does not stick on the version text, blank it instead
+    'getlocal 7',
+    'iffalse ofs9505',
+    'pushstring "modVersionText"',
+    'getlocal0',
+    'in',
+    'iftrue ofs9505',
+    'getlocal0',
+    'getlocal 7',
+    'getproperty ' + PUBLIC % 'text',
+    'setproperty ' + PUBLIC % 'modVersionText',
+    'getlocal 7',
+    'pushstring ""',
+    'setproperty ' + PUBLIC % 'text',
+    'ofs9505:',
+    'getlocal0',
+    'getlocal 4',
+    'setproperty ' + PUBLIC % 'modHidden',
+    'ofs9501:',
+])
+
+# shows again what showWithData hid
+RESTORE = '\n'.join([
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modHidden',
+    'iffalse ofs9603',
+    'pushbyte 0',
+    'setlocal 1',
+    'ofs9601:',
+    'getlocal 1',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modHidden',
+    'getproperty ' + PUBLIC % 'length',
+    'ifnlt ofs9602',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modHidden',
+    'getlocal 1',
+    'getproperty MultinameL([PackageNamespace("")])',
+    'pushtrue',
+    'setproperty ' + PUBLIC % 'visible',
+    'inclocal_i 1',
+    'jump ofs9601',
+    'ofs9602:',
+    'getlocal0',
+    'pushnull',
+    'setproperty ' + PUBLIC % 'modHidden',
+    'ofs9603:',
+    'pushstring "modVersionText"',
+    'getlocal0',
+    'in',
+    'iffalse ofs9604',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'iffalse ofs9604',
+    'pushstring "txtVersion"',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'in',
+    'iffalse ofs9604',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'parent',
+    'getproperty ' + PUBLIC % 'txtVersion',
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modVersionText',
+    'setproperty ' + PUBLIC % 'text',
+    'getlocal0',
+    'deleteproperty ' + PUBLIC % 'modVersionText',
+    'pop',
+    'ofs9604:',
+])
+
+
+def bar_guard(label):
+    return [
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'parent',
+        'iffalse ' + label,
+        'pushstring "mcInputFeedbackModule"',
+        'getlocal0',
+        'getproperty ' + PUBLIC % 'parent',
+        'in',
+        'iffalse ' + label,
+    ]
+
+
+BAR = 'getlocal0\ngetproperty ' + PUBLIC % 'parent' + '\ngetproperty ' + PUBLIC % 'mcInputFeedbackModule'
+
+# keep the prompt bar background hidden, as vanilla does here
+BAR_OFF = '\n'.join(bar_guard('ofs9111') + [
+    'getlocal0',
+    BAR,
+    'getproperty ' + PUBLIC % 'showBackground',
+    'setproperty ' + PUBLIC % 'modBarBackground',
+    BAR,
+    'pushfalse',
+    'setproperty ' + PUBLIC % 'showBackground',
+    'ofs9111:',
+])
+
+BAR_RESTORE = '\n'.join(bar_guard('ofs9011') + [
+    'pushstring "modBarBackground"',
+    'getlocal0',
+    'in',
+    'iffalse ofs9011',
+    BAR,
+    'getlocal0',
+    'getproperty ' + PUBLIC % 'modBarBackground',
+    'setproperty ' + PUBLIC % 'showBackground',
+    'getlocal0',
+    'deleteproperty ' + PUBLIC % 'modBarBackground',
+    'pop',
+    'ofs9011:',
+])
+
 
 # R or gamepad Y sets the slider to 1, the vanilla default
 INPUT = '\n'.join([
@@ -337,7 +652,8 @@ def method_bodies(abc, class_name):
 
 
 def method_block(pcode, name):
-    start = pcode.find('trait method ' + PUBLIC % name)
+    found = re.search(r'trait method QName\([^)]*\),"%s"\)' % name, pcode)
+    start = found.start() if found else -1
     begin = pcode.find('method\n', start + 13)
     end = pcode.find('end ; method', begin)
     if start < 0 or begin < 0 or end < 0:
@@ -352,6 +668,11 @@ def insert_before_last_return(block, code):
     return block[:pos] + code + '\n' + block[pos:]
 
 
+def raise_localcount(block, value):
+    current = int(re.search(r'localcount (\d+)', block).group(1))
+    return re.sub(r'localcount \d+', 'localcount %d' % max(current, value), block, count=1)
+
+
 def raise_maxstack(block, value):
     current = int(re.search(r'maxstack (\d+)', block).group(1))
     return re.sub(r'maxstack \d+', 'maxstack %d' % max(current, value), block, count=1)
@@ -362,6 +683,7 @@ def main():
     parser.add_argument('--game', default=r'D:\SteamLibrary\steamapps\common\The Witcher 3')
     parser.add_argument('--ffdec', required=True)
     parser.add_argument('--w3edit', required=True)
+    parser.add_argument('--variant', choices=VARIANTS, default='reset')
     args = parser.parse_args()
 
     shutil.rmtree(WORK, ignore_errors=True)
@@ -389,8 +711,19 @@ def main():
     if not changed or not data:
         fail('gamma module no longer matches the patch')
 
-    show = insert_before_last_return(method_block(pcode, 'showWithData'), SHOW)
-    hide = insert_before_last_return(method_block(pcode, 'hide'), HIDE)
+    show = method_block(pcode, 'showWithData')
+    slider_changed = None
+    if args.variant != 'reset':
+        white = args.variant == 'transparent'
+        if white:
+            show = insert_before_last_return(show, TRANSPARENT)
+        show = raise_localcount(insert_before_last_return(show, value_code(2, 3, white)), 8 if white else 4)
+        slider_changed = method_block(pcode, 'OnSliderValueChanged')
+        slider_changed = raise_localcount(insert_before_last_return(slider_changed, value_code(3, 4, white)), 5)
+    show = insert_before_last_return(insert_before_last_return(show, SHOW), BAR_OFF)
+    hide = insert_before_last_return(insert_before_last_return(method_block(pcode, 'hide'), HIDE), BAR_RESTORE)
+    if args.variant == 'transparent':
+        hide = raise_localcount(insert_before_last_return(hide, RESTORE), 2)
     navigate = method_block(pcode, 'handleInputNavigate')
     anchor = '"convertWASDCodeToNavEquivalent"), 1\n'
     if anchor not in navigate:
@@ -399,7 +732,10 @@ def main():
 
     bodies = method_bodies(doabc(to_gfx(redswf)), CLASS.split('.')[-1])
     replace = []
-    for name, block, stack in (('showWithData', show, 8), ('hide', hide, 4), ('handleInputNavigate', navigate, 4)):
+    methods = [('showWithData', show, 10 if slider_changed else 8), ('hide', hide, 6 if args.variant == 'transparent' else 4), ('handleInputNavigate', navigate, 4)]
+    if slider_changed:
+        methods.append(('OnSliderValueChanged', slider_changed, 10))
+    for name, block, stack in methods:
         path = os.path.join(WORK, name + '.pcode')
         with open(path, 'w') as f:
             f.write(raise_maxstack(block, stack))
@@ -426,7 +762,7 @@ def main():
                    check=True, capture_output=True)
     fix_metadata(os.path.join(packed, 'content', 'metadata.store'))
 
-    content = os.path.join(OUT, 'content')
+    content = os.path.join(ROOT, VARIANTS[args.variant], 'Mods', 'modGammaReset', 'content')
     os.makedirs(content, exist_ok=True)
     for name in ('blob0.bundle', 'metadata.store'):
         shutil.copyfile(os.path.join(packed, 'content', name), os.path.join(content, name))
