@@ -1,0 +1,4 @@
+*.zip
+*.png
+tools/work/
+__pycache__/
